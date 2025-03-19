@@ -57,6 +57,12 @@
       // Apply the hidden styles automatically
       saveOriginalValues();
       removeAdminStyles();
+    } else {
+      // If toggle state is true, make sure we clean up any hiding styles
+      const injectedStyle = document.getElementById('drupal-toggle-immediate-styles');
+      if (injectedStyle) {
+        injectedStyle.remove();
+      }
     }
   });
 })();
@@ -100,5 +106,36 @@ chrome.storage.local.get(['toggleState'], function(result) {
     
     // Also immediately remove toolbar-related classes from HTML element
     document.documentElement.classList.remove('toolbar-tray-open', 'toolbar-horizontal', 'toolbar-vertical');
+  }
+});
+
+// Listen for toggle state changes
+chrome.storage.onChanged.addListener(function(changes, namespace) {
+  if (changes.toggleState) {
+    const newToggleState = changes.toggleState.newValue;
+    
+    if (newToggleState === true) {
+      // Remove any injected style
+      const injectedStyle = document.getElementById('drupal-toggle-immediate-styles');
+      if (injectedStyle) {
+        injectedStyle.remove();
+      }
+      
+      // Show toolbar elements
+      const toolbar = document.querySelector('div#toolbar-administration');
+      if (toolbar) {
+        toolbar.style.display = '';
+      }
+      
+      const highlighted = document.querySelector('div.page > div.highlighted');
+      if (highlighted) {
+        highlighted.style.display = '';
+      }
+      
+      // Force a small delay then reload the page to properly restore admin UI
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+    }
   }
 });
