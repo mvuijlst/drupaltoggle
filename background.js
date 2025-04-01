@@ -5,21 +5,33 @@ chrome.storage.local.get(['toggleState'], function(result) {
   }
 });
 
+// Initialize tab-specific toggle states storage
+chrome.storage.local.get(['tabStates'], function(result) {
+  if (!result.tabStates) {
+    chrome.storage.local.set({tabStates: {}});
+  }
+});
+
 chrome.action.onClicked.addListener((tab) => {
-  chrome.storage.local.get(['toggleState'], function(result) {
-    const newState = !result.toggleState;
+  chrome.storage.local.get(['tabStates'], function(result) {
+    const tabStates = result.tabStates || {};
+    const currentState = tabStates[tab.id] || false;
+    const newState = !currentState;
     
-    // Update the icon based on the new state
+    // Update the icon based on the new state for this specific tab
     chrome.action.setIcon({
       path: newState ? "icon-on.png" : "icon-off.png",
       tabId: tab.id
     });
     
-    // Save the new state
-    chrome.storage.local.set({toggleState: newState});
+    // Save the new state for this specific tab
+    tabStates[tab.id] = newState;
+    chrome.storage.local.set({tabStates: tabStates});
+    
+    // Send a message to the content script with the new state
+    chrome.tabs.sendMessage(tab.id, {action: "toggleState", state: newState});
     
     // Only execute script if we're hiding elements
-    // For showing, rely on the content script to detect changes
     if (newState === false) {
       // Execute the toggle function with the new state
       chrome.scripting.executeScript({
@@ -123,4 +135,23 @@ chrome.action.onClicked.addListener((tab) => {
       });
     }
   });
+});
+
+// Clean up tab states when tabs are closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.storage.local.get(['tabStates'], function(result) {
+    if (result.tabStates && result.tabStates[tabId] !== undefined) {
+      const tabStates = result.tabStates;
+      delete tabStates[tabId];
+      chrome.storage.local.set({tabStates: tabStates});
+    }
+  });
+});
+
+// Handle requests for tab ID from content scripts
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "getTabId" && sender.tab) {
+    sendResponse({tabId: sender.tab.id});
+  }
+  return true; // Required for async response
 });
